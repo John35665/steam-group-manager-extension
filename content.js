@@ -855,7 +855,7 @@ async function sessionValues() {
         roster.members[i];
 
       status(
-        `Nicknames: ${i + 1}/${roster.members.length} — ${m.nickname}`
+        `Nicknames: ${i + 1}/${roster.members.length} — ${m.nickname} ${m.displayName}`
       );
 
       try {
@@ -878,11 +878,8 @@ async function sessionValues() {
               body:
                 new URLSearchParams({
                   nickname:
-                    m.nickname.slice(
-                      0,
-                      32
-                    ),
-
+                    `${m.nickname} ${m.displayName}`.slice(0,32),
+                
                   sessionid:
                     sessionID
                 })
@@ -1026,9 +1023,9 @@ async function sessionValues() {
                   </span>
 
                   <span class="sgm-nick">
-                    ${escapeHtml(
-                      m.nickname
-                    )}
+                  ${escapeHtml(
+                     `${m.nickname} ${m.displayName}`.slice(0,32)
+                  )}
                   </span>
 
                 </li>
