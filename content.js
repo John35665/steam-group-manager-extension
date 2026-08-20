@@ -12,7 +12,7 @@ console.log(
   const UI_ID = 'steam-group-manager-ui';
 
   // Fixed delay between Steam requests.
-  const REQUEST_DELAY = 200;
+  const REQUEST_DELAY = 400;
 
   const storageGet = (key) =>
     chrome.storage.local.get(key).then(r => r?.[key]);
@@ -188,14 +188,14 @@ console.log(
 
   async function receivePageMessages() {
 
-        window.addEventListener(
-            'message',
-            async event => {
-            
-                console.log(
-                    '[Steam Group Manager] Page message received:',
-                    event.data
-                );
+    window.addEventListener(
+      'message',
+      async event => {
+
+        console.log(
+          '[Steam Group Manager] Page message received:',
+          event.data
+        );
 
         if (
           event.source !== window ||
@@ -507,67 +507,67 @@ console.log(
 
   }
 
-async function sessionValues() {
+  async function sessionValues() {
 
-  const response =
-    await new Promise(resolve => {
+    const response =
+      await new Promise(resolve => {
 
-      chrome.runtime.sendMessage(
-        {
-          action: 'get-steam-cookies'
-        },
-        resolve
+        chrome.runtime.sendMessage(
+          {
+            action: 'get-steam-cookies'
+          },
+          resolve
+        );
+
+      });
+
+    if (chrome.runtime.lastError) {
+
+      throw new Error(
+        'Unable to contact background.js: ' +
+        chrome.runtime.lastError.message
       );
 
-    });
+    }
 
-  if (chrome.runtime.lastError) {
+    if (!response?.ok) {
 
-    throw new Error(
-      'Unable to contact background.js: ' +
-      chrome.runtime.lastError.message
-    );
+      throw new Error(
+        response?.error ||
+        'Unable to retrieve Steam cookies.'
+      );
+
+    }
+
+    const sessionID =
+      String(
+        response.sessionid || ''
+      ).trim();
+
+    if (!sessionID) {
+
+      throw new Error(
+        'Steam sessionid cookie was not found. Make sure you are logged into Steam.'
+      );
+
+    }
+
+    const steamId =
+      String(
+        window.g_steamID ||
+        window.g_rgProfileData?.steamid ||
+        ''
+      ).trim();
+
+    return {
+      sessionID,
+      steamId
+    };
 
   }
-
-  if (!response?.ok) {
-
-    throw new Error(
-      response?.error ||
-      'Unable to retrieve Steam cookies.'
-    );
-
-  }
-
-  const sessionID =
-    String(
-      response.sessionid || ''
-    ).trim();
-
-  if (!sessionID) {
-
-    throw new Error(
-      'Steam sessionid cookie was not found. Make sure you are logged into Steam.'
-    );
-
-  }
-
-  const steamId =
-    String(
-      window.g_steamID ||
-      window.g_rgProfileData?.steamid ||
-      ''
-    ).trim();
-
-  return {
-    sessionID,
-    steamId
-  };
-
-}
 
   /*
-   * Wait exactly 200 ms between requests.
+   * Wait exactly 400 ms between requests.
    */
   async function requestDelay() {
 
@@ -696,9 +696,15 @@ async function sessionValues() {
     const ids =
       new Set();
 
+    /*
+     * Steam commonly exposes the full SteamID64 as
+     * data-steamid="7656119...".
+     *
+     * Some markup can also use data-steam-id.
+     */
     for (
       const m of html.matchAll(
-        /(?:data-steam-id|data-miniprofile)=["'](\d{10,20})["']/gi
+        /data-steam(?:-)?id=["'](\d{16,20})["']/gi
       )
     ) {
 
@@ -708,9 +714,13 @@ async function sessionValues() {
 
     }
 
+    /*
+     * /profiles/<SteamID64> URLs already contain the
+     * full 64-bit Steam ID.
+     */
     for (
       const m of html.matchAll(
-        /\/profiles\/(\d{10,20})/gi
+        /\/profiles\/(\d{16,20})(?:[\/"'?#]|$)/gi
       )
     ) {
 
@@ -719,6 +729,70 @@ async function sessionValues() {
       );
 
     }
+
+    /*
+     * data-miniprofile is normally Steam's 32-bit
+     * account ID, NOT a SteamID64.
+     *
+     * Convert it using:
+     *
+     * SteamID64 =
+     * 76561197960265728 + accountID
+     */
+    const STEAM_ID64_BASE =
+      76561197960265728n;
+
+    for (
+      const m of html.matchAll(
+        /data-miniprofile=["'](\d{1,12})["']/gi
+      )
+    ) {
+
+      try {
+
+        const accountId =
+          BigInt(
+            m[1]
+          );
+
+        if (
+          accountId <= 0n
+        ) {
+          continue;
+        }
+
+        const steamId64 =
+          (
+            STEAM_ID64_BASE +
+            accountId
+          ).toString();
+
+        if (
+          validSteamId(
+            steamId64
+          )
+        ) {
+
+          ids.add(
+            steamId64
+          );
+
+        }
+
+      }
+
+      catch (e) {
+
+        // Ignore malformed miniprofile values.
+
+      }
+
+    }
+
+    console.log(
+      '[Steam Group Manager] Friend Steam IDs found:',
+      ids.size
+    );
 
     return [
       ...ids
@@ -879,7 +953,7 @@ async function sessionValues() {
                 new URLSearchParams({
                   nickname:
                     `${m.nickname} ${m.displayName}`.slice(0,32),
-                
+
                   sessionid:
                     sessionID
                 })
