@@ -774,6 +774,28 @@ console.log(
      CLEAR FRIEND NICKNAMES
   ===================================================== */
 
+  async function getFriendsWithNicknames() {
+    const response = await fetch(`${STEAM}/my/friends`, { credentials: 'include' });
+    if (!response.ok) throw new Error(`Unable to load Steam friends (HTTP ${response.status})`);
+    const html = await response.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const ids = new Set();
+    for (const hint of doc.querySelectorAll('.player_nickname_hint')) {
+      const tile = hint.closest('[id^="fr_"]');
+      const match = tile?.id?.match(/^fr_(\\d+)$/);
+      if (!match) continue;
+      const accountId = BigInt(match[1]);
+      if (accountId > 0n && accountId <= 4294967295n) {
+        ids.add((76561197960265728n + accountId).toString());
+      }
+    }
+    // Never clear everyone's nicknames if detection fails or the page changes.
+    if (!doc.querySelector('[id^="fr_"]')) {
+      throw new Error('Could not identify Steam friend entries; nickname clearing stopped.');
+    }
+    return [...ids];
+  }
+
   async function clearFriendNicknames(
     status
   ) {
@@ -784,7 +806,7 @@ console.log(
       await sessionValues();
 
     const friendIds =
-      await getFriendSteamIds();
+      await getFriendsWithNicknames();
 
     let ok = 0;
     let failed = 0;
