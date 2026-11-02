@@ -658,7 +658,7 @@ console.log(
 
     // Steam's friend tiles use a 32-bit account ID in #fr_<accountID>,
     // even when the profile has a custom /id/ URL.
-    const friendTileIds = [...html.matchAll(/data-container=["']#fr_(\\d{1,12})["']/gi)];
+    const friendTileIds = [...html.matchAll(/data-container=["']#fr_(\d{1,12})["']/gi)];
     for (const match of friendTileIds) {
       const accountId = BigInt(match[1]);
       if (accountId > 0n && accountId <= 4294967295n) {
@@ -782,7 +782,7 @@ console.log(
     const ids = new Set();
     for (const hint of doc.querySelectorAll('.player_nickname_hint')) {
       const tile = hint.closest('[id^="fr_"]');
-      const match = tile?.id?.match(/^fr_(\\d+)$/);
+      const match = tile?.id?.match(/^fr_(\d+)$/);
       if (!match) continue;
       const accountId = BigInt(match[1]);
       if (accountId > 0n && accountId <= 4294967295n) {
