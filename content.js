@@ -908,20 +908,24 @@ console.log(
     } =
       await sessionValues();
 
+    // Only apply new team nicknames to accepted Steam friends.
+    const friendIds = new Set(await getFriendSteamIds());
+    if (!friendIds.size) throw new Error('Unable to confirm existing Steam friends; nickname application stopped.');
+    const teamFriends = roster.members.filter(m => friendIds.has(String(m.steamId)));
     let ok = 0;
     let failed = 0;
 
     for (
       let i = 0;
-      i < roster.members.length;
+      i < teamFriends.length;
       i++
     ) {
 
       const m =
-        roster.members[i];
+        teamFriends[i];
 
       status(
-        `Nicknames: ${i + 1}/${roster.members.length} — ${m.nickname} ${m.displayName}`
+        `Nicknames: ${i + 1}/${teamFriends.length} — ${m.nickname} ${m.displayName}`
       );
 
       try {
@@ -977,6 +981,7 @@ console.log(
     return {
       ok,
       failed,
+      skipped: roster.members.length - teamFriends.length,
       cleared
     };
 
