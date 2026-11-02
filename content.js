@@ -12,7 +12,7 @@ console.log(
   const UI_ID = 'steam-group-manager-ui';
 
   // Fixed delay between Steam requests.
-  const REQUEST_DELAY = 400;
+  const REQUEST_DELAY = 2000;
 
   const storageGet = (key) =>
     chrome.storage.local.get(key).then(r => r?.[key]);
