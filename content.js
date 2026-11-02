@@ -11,8 +11,8 @@ console.log(
   const STORAGE_KEY = 'steamGroupManagerRosterV1';
   const UI_ID = 'steam-group-manager-ui';
 
-  // Fixed 2-second delay between Steam requests.
-  const REQUEST_DELAY = 2000;
+  const FRIEND_REQUEST_DELAY = 2000;
+  const NICKNAME_DELAY = 500;
 
   function extensionStorage() {
     if (typeof chrome === 'undefined' || !chrome.storage?.local) {
@@ -520,13 +520,13 @@ console.log(
   /*
    * Wait exactly 400 ms between requests.
    */
-  async function requestDelay() {
+  async function requestDelay(ms) {
 
     await new Promise(
       resolve =>
         setTimeout(
           resolve,
-          REQUEST_DELAY
+          ms
         )
     );
 
@@ -615,7 +615,7 @@ console.log(
         });
       }
 
-      await requestDelay();
+      await requestDelay(FRIEND_REQUEST_DELAY);
 
     }
 
@@ -870,7 +870,7 @@ console.log(
 
       }
 
-      await requestDelay();
+      await requestDelay(NICKNAME_DELAY);
 
     }
 
@@ -974,7 +974,7 @@ console.log(
 
       }
 
-      await requestDelay();
+      await requestDelay(NICKNAME_DELAY);
 
     }
 
