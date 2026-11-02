@@ -539,8 +539,16 @@ console.log(
     } =
       await sessionValues();
 
+    status('Checking your current Steam friends before sending requests...');
+    const existingFriends = new Set(await getFriendSteamIds());
+    // Fail closed if Steam's friends page cannot be parsed reliably.
+    if (!existingFriends.size) {
+      throw new Error('No Steam friends could be identified. Requests were stopped to avoid duplicate invites.');
+    }
+
     let sent = 0;
     let failed = 0;
+    let skipped = 0;
     const failedUsers = [];
 
     for (
@@ -551,6 +559,11 @@ console.log(
 
       const m =
         roster.members[i];
+
+      if (existingFriends.has(String(m.steamId))) {
+        skipped++;
+        continue;
+      }
 
       status(
         `Friend requests: ${i + 1}/${roster.members.length} — ${m.displayName || m.steamId}`
@@ -618,6 +631,7 @@ console.log(
     return {
       sent,
       failed,
+      skipped,
       failedUsers
     };
 
@@ -1109,7 +1123,7 @@ console.log(
             );
 
           status(
-            `Friend-request run complete. ${r.sent} accepted by Steam's endpoint, ${r.failed} failed.`,
+            `Friend-request run complete. ${r.sent} accepted by Steam's endpoint, ${r.skipped} already friends (skipped), ${r.failed} failed.`,
             r.failed ? 'sgm-bad' : 'sgm-ok'
           );
 
