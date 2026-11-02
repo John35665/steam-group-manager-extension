@@ -541,6 +541,7 @@ console.log(
 
     let sent = 0;
     let failed = 0;
+    const failedUsers = [];
 
     for (
       let i = 0;
@@ -583,11 +584,18 @@ console.log(
           );
 
         if (!r.ok) {
+          let reason = `HTTP ${r.status}`;
+          try {
+            const body = await r.json();
+            reason = body?.message || body?.error || reason;
+          } catch (_) { /* HTTP status remains available */ }
+          throw new Error(String(reason));
+        }
 
-          throw new Error(
-            `HTTP ${r.status}`
-          );
-
+        // Steam may report a rejected request inside a 200 response.
+        const body = await r.json().catch(() => null);
+        if (body && (body.success === false || body.success === 0 || body.success === '0' || body.error)) {
+          throw new Error(String(body.message || body.error || 'Steam rejected the request'));
         }
 
         sent++;
@@ -595,9 +603,12 @@ console.log(
       }
 
       catch (e) {
-
         failed++;
-
+        failedUsers.push({
+          steamId: m.steamId,
+          displayName: m.displayName || 'Unknown User',
+          reason: String(e?.message || 'Unknown error')
+        });
       }
 
       await requestDelay();
@@ -606,7 +617,8 @@ console.log(
 
     return {
       sent,
-      failed
+      failed,
+      failedUsers
     };
 
   }
@@ -1025,6 +1037,8 @@ console.log(
 
         </div>
 
+        <div id="sgm-failures" style="display:none;max-height:230px;overflow:auto;margin-top:10px;font-size:12px"></div>
+
         <ul class="sgm-list">
 
           ${roster.members
@@ -1095,11 +1109,26 @@ console.log(
             );
 
           status(
-            `Friend-request run complete. ${r.sent} accepted by Steam's endpoint, ${r.failed} failed. You can run this again safely when new members are added.`,
-            r.failed
-              ? 'sgm-bad'
-              : 'sgm-ok'
+            `Friend-request run complete. ${r.sent} accepted by Steam's endpoint, ${r.failed} failed.`,
+            r.failed ? 'sgm-bad' : 'sgm-ok'
           );
+
+          const failedPanel = root.querySelector('#sgm-failures');
+          if (r.failedUsers.length) {
+            failedPanel.style.display = 'block';
+            failedPanel.innerHTML =
+              '<details open><summary style="cursor:pointer;font-weight:bold">View failed users (' +
+              r.failedUsers.length + ')</summary><ul class="sgm-list">' +
+              r.failedUsers.map(m =>
+                '<li style="display:block"><strong>' + escapeHtml(m.displayName) +
+                '</strong> — <a style="color:#9cc6ff" target="_blank" rel="noopener noreferrer" href="https://steamcommunity.com/profiles/' +
+                encodeURIComponent(m.steamId) + '">' + escapeHtml(m.steamId) +
+                '</a><div style="color:#ff8e8e">' + escapeHtml(m.reason) + '</div></li>'
+              ).join('') + '</ul></details>';
+          } else {
+            failedPanel.style.display = 'none';
+            failedPanel.innerHTML = '';
+          }
 
         }
 
