@@ -549,25 +549,15 @@ console.log(
 
     let sent = 0;
     let failed = 0;
-    let skipped = 0;
+    const skipped = roster.members.filter(m => existingFriends.has(String(m.steamId))).length;
+    const pendingMembers = roster.members.filter(m => !existingFriends.has(String(m.steamId)));
     const failedUsers = [];
 
-    for (
-      let i = 0;
-      i < roster.members.length;
-      i++
-    ) {
-
-      const m =
-        roster.members[i];
-
-      if (existingFriends.has(String(m.steamId))) {
-        skipped++;
-        continue;
-      }
+    for (let i = 0; i < pendingMembers.length; i++) {
+      const m = pendingMembers[i];
 
       status(
-        `Friend requests: ${i + 1}/${roster.members.length} — ${m.displayName || m.steamId}`
+        `Friend requests: ${i + 1}/${pendingMembers.length} — ${m.displayName || m.steamId}`
       );
 
       try {
