@@ -14,11 +14,18 @@ console.log(
   // Fixed 2-second delay between Steam requests.
   const REQUEST_DELAY = 2000;
 
+  function extensionStorage() {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+      throw new Error('Extension storage is unavailable. Reload the extension at chrome://extensions, then refresh this page. Do not run content.js directly in the page console.');
+    }
+    return chrome.storage.local;
+  }
+
   const storageGet = (key) =>
-    chrome.storage.local.get(key).then(r => r?.[key]);
+    extensionStorage().get(key).then(r => r?.[key]);
 
   const storageSet = (value) =>
-    chrome.storage.local.set({
+    extensionStorage().set({
       [STORAGE_KEY]: value
     });
 
