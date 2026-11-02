@@ -1036,8 +1036,6 @@ console.log(
 
         <div class="sgm-actions">
 
-          <button id="sgm-check" class="sgm-btn secondary">Check Existing Friends</button>
-
           <button
             id="sgm-friends"
             class="sgm-btn">
@@ -1119,35 +1117,10 @@ console.log(
         '#sgm-nicks'
       );
 
-    const checkButton = root.querySelector('#sgm-check');
     const preview = root.querySelector('#sgm-preview');
-    let checkedFriends = null;
-
-    checkButton.onclick = async () => {
-      checkButton.disabled = true;
-      fb.disabled = true;
-      checkedFriends = null;
-      preview.textContent = 'Reading your Steam friends list...';
-      try {
-        const ids = await getFriendSteamIds();
-        if (!ids.length) throw new Error('No friends could be identified. Check the Steam friends page before proceeding.');
-        checkedFriends = new Set(ids);
-        const already = roster.members.filter(m => checkedFriends.has(String(m.steamId))).length;
-        preview.textContent = 'Steam friends found: ' + ids.length + '. Group members already friends: ' + already + '. Requests remaining: ' + (roster.members.length - already) + '. Review these counts before sending.';
-      } catch (e) {
-        preview.textContent = 'Friend check failed: ' + (e?.message || String(e));
-      } finally {
-        checkButton.disabled = false;
-        fb.disabled = !checkedFriends;
-      }
-    };
-
-    fb.disabled = true;
 
     fb.onclick =
       async () => {
-        if (!checkedFriends) { status('Check existing friends first.', 'sgm-bad'); return; }
-
         fb.disabled =
           true;
 
@@ -1155,12 +1128,31 @@ console.log(
           true;
 
         try {
+          let existingFriends = new Set();
+          let checked = false;
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            status('Checking current Steam friends (attempt ' + attempt + '/2)...');
+            try {
+              const ids = await getFriendSteamIds();
+              if (!ids.length) throw new Error('No friend IDs found');
+              existingFriends = new Set(ids);
+              checked = true;
+              break;
+            } catch (error) {
+              console.warn('[Steam Group Manager] Friend check failed:', error);
+            }
+          }
+
+          const already = roster.members.filter(m => existingFriends.has(String(m.steamId))).length;
+          preview.textContent = checked
+            ? 'Existing Steam friends found: ' + existingFriends.size + '. Already friends in group: ' + already + '.'
+            : 'Friend check failed twice. Fallback: attempting all group members (duplicates may be rejected by Steam).';
 
           const r =
             await sendFriendRequests(
               roster,
               status,
-              checkedFriends
+              existingFriends
             );
 
           status(
@@ -1199,7 +1191,7 @@ console.log(
         finally {
 
           fb.disabled =
-            !checkedFriends;
+            false;
 
           nb.disabled =
             false;
