@@ -98,72 +98,16 @@ console.log(
     };
   }
 
-  async function mergeRoster(incoming) {
-    const old =
-      await storageGet(
-        STORAGE_KEY
-      ) || {
-        members: []
-      };
-
-    const merged =
-      new Map(
-        (old.members || [])
-          .filter(
-            m =>
-              validSteamId(
-                m.steamId
-              )
-          )
-          .map(
-            m => [
-              m.steamId,
-              m
-            ]
-          )
-      );
-
-    for (
-      const m of incoming.members
-    ) {
-
-      merged.set(
-        m.steamId,
-        {
-          ...merged.get(
-            m.steamId
-          ),
-
-          ...m
-        }
-      );
-
-    }
-
+  // A sync is a snapshot of the selected group, not an additive import.
+  // Replacing the stored roster removes members no longer in the group
+  // and prevents members from other groups being carried forward.
+  async function replaceRoster(incoming) {
     const result = {
-
-      groupId:
-        incoming.groupId ||
-        old.groupId ||
-        '',
-
-      groupName:
-        incoming.groupName ||
-        old.groupName ||
-        '',
-
-      updatedAt:
-        new Date().toISOString(),
-
-      members:
-        [...merged.values()]
-
+      ...incoming,
+      updatedAt: new Date().toISOString()
     };
 
-    await storageSet(
-      result
-    );
-
+    await storageSet(result);
     return result;
   }
 
@@ -235,7 +179,7 @@ console.log(
           try {
 
             const roster =
-              await mergeRoster(
+              await replaceRoster(
                 normalizeRoster(
                   event.data.payload
                 )
