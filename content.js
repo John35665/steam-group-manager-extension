@@ -531,7 +531,8 @@ console.log(
 
   async function sendFriendRequests(
     roster,
-    status
+    status,
+    existingFriends
   ) {
 
     const {
@@ -541,6 +542,7 @@ console.log(
 
     let sent = 0;
     let failed = 0;
+    let skipped = 0;
     const failedUsers = [];
 
     for (
@@ -551,6 +553,11 @@ console.log(
 
       const m =
         roster.members[i];
+
+      if (existingFriends.has(String(m.steamId))) {
+        skipped++;
+        continue;
+      }
 
       status(
         `Friend requests: ${i + 1}/${roster.members.length} — ${m.displayName || m.steamId}`
@@ -618,6 +625,7 @@ console.log(
     return {
       sent,
       failed,
+      skipped,
       failedUsers
     };
 
@@ -649,8 +657,17 @@ console.log(
     const html =
       await r.text();
 
-    const ids =
-      new Set();
+    const ids = new Set();
+
+    // Steam's friend tiles use a 32-bit account ID in #fr_<accountID>,
+    // even when the profile has a custom /id/ URL.
+    const friendTileIds = [...html.matchAll(/data-container=["']#fr_(\\d{1,12})["']/gi)];
+    for (const match of friendTileIds) {
+      const accountId = BigInt(match[1]);
+      if (accountId > 0n && accountId <= 4294967295n) {
+        ids.add((76561197960265728n + accountId).toString());
+      }
+    }
 
     /*
      * Steam commonly exposes the full SteamID64 as
@@ -1012,6 +1029,8 @@ console.log(
 
         <div class="sgm-actions">
 
+          <button id="sgm-check" class="sgm-btn secondary">Check Existing Friends</button>
+
           <button
             id="sgm-friends"
             class="sgm-btn">
@@ -1036,6 +1055,8 @@ console.log(
           and apply nicknames later.
 
         </div>
+
+        <div id="sgm-preview" style="margin-top:10px;font-size:12px"></div>
 
         <div id="sgm-failures" style="display:none;max-height:230px;overflow:auto;margin-top:10px;font-size:12px"></div>
 
@@ -1091,8 +1112,34 @@ console.log(
         '#sgm-nicks'
       );
 
+    const checkButton = root.querySelector('#sgm-check');
+    const preview = root.querySelector('#sgm-preview');
+    let checkedFriends = null;
+
+    checkButton.onclick = async () => {
+      checkButton.disabled = true;
+      fb.disabled = true;
+      checkedFriends = null;
+      preview.textContent = 'Reading your Steam friends list...';
+      try {
+        const ids = await getFriendSteamIds();
+        if (!ids.length) throw new Error('No friends could be identified. Check the Steam friends page before proceeding.');
+        checkedFriends = new Set(ids);
+        const already = roster.members.filter(m => checkedFriends.has(String(m.steamId))).length;
+        preview.textContent = 'Steam friends found: ' + ids.length + '. Group members already friends: ' + already + '. Requests remaining: ' + (roster.members.length - already) + '. Review these counts before sending.';
+      } catch (e) {
+        preview.textContent = 'Friend check failed: ' + (e?.message || String(e));
+      } finally {
+        checkButton.disabled = false;
+        fb.disabled = !checkedFriends;
+      }
+    };
+
+    fb.disabled = true;
+
     fb.onclick =
       async () => {
+        if (!checkedFriends) { status('Check existing friends first.', 'sgm-bad'); return; }
 
         fb.disabled =
           true;
@@ -1105,11 +1152,12 @@ console.log(
           const r =
             await sendFriendRequests(
               roster,
-              status
+              status,
+              checkedFriends
             );
 
           status(
-            `Friend-request run complete. ${r.sent} accepted by Steam's endpoint, ${r.failed} failed.`,
+            `Friend-request run complete. ${r.sent} accepted by Steam's endpoint, ${r.skipped} already friends skipped, ${r.failed} failed.`,
             r.failed ? 'sgm-bad' : 'sgm-ok'
           );
 
@@ -1144,7 +1192,7 @@ console.log(
         finally {
 
           fb.disabled =
-            false;
+            !checkedFriends;
 
           nb.disabled =
             false;
